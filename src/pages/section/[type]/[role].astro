@@ -33,8 +33,8 @@ const roleInfo = ROLES[role];
         <div class="eyebrow">STEP 3</div>
         <h1>選擇本次填寫區段</h1>
         <p>
-          同一個身分下，每個區段只能被一位填寫者領取。選擇後會立即鎖定，
-          其他人就不能再選同一區段，直到清除資料或匯出最終 Excel。
+          目前前端不阻擋重複填寫。填寫者可自由選擇 A、B、C、D、E 任一區段，
+          未來若要限制重複領取，會改由後端與資料庫判斷。
         </p>
       </div>
       <div class="hero-action-stack">
@@ -49,7 +49,7 @@ const roleInfo = ROLES[role];
           <span>{form.label}｜{roleInfo.label}</span>
           <h2>本次負責項目</h2>
         </div>
-        <div class="lock-summary" id="lock-summary">讀取區段狀態中…</div>
+        <div class="lock-summary" id="section-summary">ABCDE 皆可選取</div>
       </div>
 
       <div class="section-check-grid" id="section-check-grid">
@@ -60,22 +60,22 @@ const roleInfo = ROLES[role];
             <span class="section-check-content">
               <b>{SECTION_SUMMARY[code].title}</b>
               <small>滿分 {SECTION_SUMMARY[code].max} 分</small>
-              <em data-lock-text={code}>尚未鎖定，可選擇</em>
+              <em data-section-text={code}>可選取，不由前端鎖定</em>
             </span>
           </label>
         ))}
       </div>
 
       <div class="section-picker-actions">
-        <button class="btn secondary" type="button" id="select-all-btn">選擇所有可填區段</button>
+        <button class="btn secondary" type="button" id="select-all-btn">選擇 A–E 全部區段</button>
         <button class="btn ghost" type="button" id="clear-select-btn">取消勾選</button>
-        <button class="btn danger-soft" type="button" id="clear-role-btn">清除本身分資料 / 解除鎖定</button>
+        <button class="btn danger-soft" type="button" id="clear-role-btn">清除本身分暫存資料</button>
         <button class="btn primary" id="start-form-btn" type="button">請選擇區段</button>
       </div>
 
       <p class="section-lock-note">
-        例如甲委員先選 A 並開始填寫，A 會立刻鎖定；乙委員只能再選 B、C、D、E。
-        據點自評端也使用相同邏輯。
+        這版只負責前端填寫與暫存，不會阻擋不同委員或不同填寫者選到相同區段。
+        之後串接後端時，再由後端判斷是否允許重複提交或重複領取。
       </p>
     </section>
   </main>
@@ -92,7 +92,7 @@ const roleInfo = ROLES[role];
 
     function emptyState() {
       return {
-        version: 3,
+        version: 4,
         formType,
         role,
         formLabel,
@@ -130,55 +130,8 @@ const roleInfo = ROLES[role];
       return `record-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     }
 
-    function formatTime(value) {
-      if (!value) return "";
-      try {
-        return new Date(value).toLocaleString("zh-TW", { hour12: false });
-      } catch {
-        return value;
-      }
-    }
-
-    function refreshLocks() {
-      const state = readState();
-      let lockedCount = 0;
-
-      SECTION_CODES.forEach((code) => {
-        const card = document.querySelector(`[data-section-card="${code}"]`);
-        const input = card?.querySelector("input");
-        const text = document.querySelector(`[data-lock-text="${code}"]`);
-        const lock = state.locks?.[code];
-
-        if (!card || !input || !text) return;
-
-        if (lock?.recordId) {
-          lockedCount += 1;
-          input.checked = false;
-          input.disabled = true;
-          card.classList.add("is-locked");
-          const owner = lock.ownerName ? `｜${lock.ownerName}` : "";
-          const status = lock.status === "saved" ? "已儲存" : "填寫中";
-          text.textContent = `已鎖定｜${status}${owner}`;
-          text.title = lock.lockedAt ? `鎖定時間：${formatTime(lock.lockedAt)}` : "";
-        } else {
-          input.disabled = false;
-          card.classList.remove("is-locked");
-          text.textContent = "尚未鎖定，可選擇";
-          text.title = "";
-        }
-      });
-
-      const summary = document.querySelector("#lock-summary");
-      if (summary) {
-        summary.textContent = `已鎖定 ${lockedCount} / 5 區段，尚可選 ${5 - lockedCount} 區段`;
-      }
-
-      updateStartButton();
-    }
-
     function selectedSections() {
       return Array.from(document.querySelectorAll("input[name='sections']:checked"))
-        .filter((input) => !input.disabled)
         .map((input) => input.value);
     }
 
@@ -186,6 +139,7 @@ const roleInfo = ROLES[role];
       const button = document.querySelector("#start-form-btn");
       const selected = selectedSections();
       if (!button) return;
+
       if (selected.length === 0) {
         button.classList.add("is-disabled");
         button.textContent = "請選擇區段";
@@ -195,23 +149,51 @@ const roleInfo = ROLES[role];
       }
     }
 
+    function refreshSectionSummary() {
+      const state = readState();
+      const records = state.records || [];
+      const usedSections = new Set();
+
+      records.forEach((record) => {
+        if (Array.isArray(record.sections)) {
+          record.sections.forEach((code) => {
+            if (SECTION_CODES.includes(code)) usedSections.add(code);
+          });
+        }
+      });
+
+      SECTION_CODES.forEach((code) => {
+        const card = document.querySelector(`[data-section-card="${code}"]`);
+        const input = card?.querySelector("input");
+        const text = document.querySelector(`[data-section-text="${code}"]`);
+        if (!card || !input || !text) return;
+
+        input.disabled = false;
+        card.classList.remove("is-locked");
+        text.textContent = usedSections.has(code)
+          ? "已有暫存紀錄，但仍可再次選取"
+          : "可選取，不由前端鎖定";
+        text.title = "目前前端不阻擋重複選取，未來由後端判斷。";
+      });
+
+      const summary = document.querySelector("#section-summary");
+      if (summary) {
+        summary.textContent = `目前 ${records.length} 筆暫存紀錄｜ABCDE 皆可選取`;
+      }
+
+      updateStartButton();
+    }
+
     function startForm() {
       const selected = selectedSections();
       if (selected.length === 0) return;
 
       const state = readState();
-      const lockedByOthers = selected.filter((code) => state.locks?.[code]?.recordId);
-      if (lockedByOthers.length > 0) {
-        alert(`${lockedByOthers.join("、")} 已被其他填寫者鎖定，請重新選擇。`);
-        refreshLocks();
-        return;
-      }
-
       const recordId = createId();
       const now = new Date().toISOString();
       const record = {
         id: recordId,
-        version: 3,
+        version: 4,
         formType,
         role,
         formLabel,
@@ -228,15 +210,6 @@ const roleInfo = ROLES[role];
       };
 
       state.records.push(record);
-      selected.forEach((code) => {
-        state.locks[code] = {
-          recordId,
-          status: "draft",
-          ownerName: "",
-          lockedAt: now,
-          updatedAt: now,
-        };
-      });
       saveState(state);
 
       window.location.href = `/form/${formType}/${role}?sections=${encodeURIComponent(selected.join(","))}&recordId=${encodeURIComponent(recordId)}`;
@@ -248,7 +221,7 @@ const roleInfo = ROLES[role];
 
     document.querySelector("#select-all-btn")?.addEventListener("click", () => {
       document.querySelectorAll("input[name='sections']").forEach((input) => {
-        if (!input.disabled) input.checked = true;
+        input.checked = true;
       });
       updateStartButton();
     });
@@ -261,15 +234,15 @@ const roleInfo = ROLES[role];
     });
 
     document.querySelector("#clear-role-btn")?.addEventListener("click", () => {
-      const ok = confirm(`確定清除「${formLabel}｜${roleLabel}」目前所有暫存紀錄與區段鎖定嗎？`);
+      const ok = confirm(`確定清除「${formLabel}｜${roleLabel}」目前所有暫存紀錄嗎？`);
       if (!ok) return;
       localStorage.removeItem(stateKey);
-      refreshLocks();
-      alert("已清除本身分資料並解除所有區段鎖定。");
+      refreshSectionSummary();
+      alert("已清除本身分暫存資料。");
     });
 
     document.querySelector("#start-form-btn")?.addEventListener("click", startForm);
 
-    refreshLocks();
+    refreshSectionSummary();
   </script>
 </BaseLayout>

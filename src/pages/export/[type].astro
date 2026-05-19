@@ -26,7 +26,7 @@ const form = FORMS[type];
         <h1>{form.label}｜最終資料匯出</h1>
         <p>
           本頁會依照目前瀏覽器暫存資料，各自匯出「據點自評」與「委員評分」兩個 Excel 檔。
-          匯出完成後可選擇清除資料並解除所有區段鎖定。
+          目前前端不阻擋重複選取區段，未來若要限制重複，會交由後端處理。
         </p>
       </div>
       <a class="ghost-link" href={`/role/${type}`}>← 回填寫身分</a>
@@ -68,8 +68,8 @@ const form = FORMS[type];
 
     <section class="choice-section">
       <div class="section-heading">
-        <span>區段鎖定狀態</span>
-        <h2>目前 A–E 填寫分工</h2>
+        <span>分區填寫紀錄</span>
+        <h2>目前 A–E 暫存分工</h2>
       </div>
 
       <div class="lock-table-wrap">
@@ -93,13 +93,6 @@ const form = FORMS[type];
     const formType = root?.dataset.formType || "general";
     const formLabel = root?.dataset.formLabel || "";
     const SECTION_CODES = ["A", "B", "C", "D", "E"];
-    const SECTION_TITLES = {
-      A: "行政效能",
-      B: "服務品質管理",
-      C: "照顧服務品質",
-      D: "重要加扣分項目",
-      E: "環境安全與緊急意外事件處理",
-    };
     const ROLE_LABELS = {
       self: "據點自評",
       committee: "委員評分",
@@ -112,7 +105,7 @@ const form = FORMS[type];
 
     function emptyState(role) {
       return {
-        version: 3,
+        version: 4,
         formType,
         role,
         formLabel,
@@ -163,17 +156,29 @@ const form = FORMS[type];
       }
     }
 
+    function getUsedSections(records) {
+      const used = new Set();
+      records.forEach((record) => {
+        if (Array.isArray(record.sections)) {
+          record.sections.forEach((code) => {
+            if (SECTION_CODES.includes(code)) used.add(code);
+          });
+        }
+      });
+      return used;
+    }
+
     function refreshStatus() {
       ["self", "committee"].forEach((role) => {
         const state = readState(role);
         const records = state.records || [];
-        const locked = Object.keys(state.locks || {}).filter((code) => state.locks[code]?.recordId);
+        const usedSections = getUsedSections(records);
         const scoreTotal = records.reduce((sum, record) => sum + Number(record.total || 0), 0);
         const el = document.querySelector(`#status-${role}`);
         if (el) {
           el.innerHTML = `
             <b>${records.length}</b> 筆填寫紀錄｜
-            <b>${locked.length}</b> 個區段已鎖定｜
+            <b>${usedSections.size}</b> 個區段已有紀錄｜
             目前彙整小計 <b>${formatScore(scoreTotal)}</b> 分
           `;
         }
@@ -183,15 +188,21 @@ const form = FORMS[type];
       if (!tbody) return;
       tbody.innerHTML = ["self", "committee"].map((role) => {
         const state = readState(role);
+        const records = state.records || [];
         return `
           <tr>
             <th>${ROLE_LABELS[role]}</th>
             ${SECTION_CODES.map((code) => {
-              const lock = state.locks?.[code];
-              if (!lock?.recordId) return `<td class="free-cell">未鎖定</td>`;
-              const owner = lock.ownerName ? `<strong>${escapeHtml(lock.ownerName)}</strong>` : `<strong>未填姓名</strong>`;
-              const status = lock.status === "saved" ? "已儲存" : "填寫中";
-              return `<td class="locked-cell">${owner}<br><small>${status}｜${formatTime(lock.updatedAt || lock.lockedAt)}</small></td>`;
+              const sectionRecords = records.filter((record) => Array.isArray(record.sections) && record.sections.includes(code));
+              if (sectionRecords.length === 0) return `<td class="free-cell">尚無紀錄</td>`;
+
+              return `<td class="locked-cell">${sectionRecords.map((record, index) => {
+                const meta = record.meta || {};
+                const owner = meta.evaluatorName ? escapeHtml(meta.evaluatorName) : "未填姓名";
+                const status = record.status === "saved" ? "已儲存" : "填寫中";
+                const score = record.scores?.[code] ?? 0;
+                return `<div class="section-record-mini"><strong>${index + 1}. ${owner}</strong><br><small>${status}｜${formatScore(score)} 分｜${formatTime(record.updatedAt || record.lockedAt)}</small></div>`;
+              }).join("<hr>")}</td>`;
             }).join("")}
           </tr>
         `;
@@ -306,7 +317,7 @@ const form = FORMS[type];
       URL.revokeObjectURL(url);
 
       setTimeout(() => {
-        const clear = confirm(`${ROLE_LABELS[role]} Excel 已匯出。是否清除本身分暫存資料並解除區段鎖定？`);
+        const clear = confirm(`${ROLE_LABELS[role]} Excel 已匯出。是否清除本身分暫存資料？`);
         if (clear) {
           localStorage.removeItem(stateKey(role));
           refreshStatus();
@@ -319,7 +330,7 @@ const form = FORMS[type];
     });
 
     document.querySelector("#clear-all-btn")?.addEventListener("click", () => {
-      const ok = confirm(`確定清除「${formLabel}」的自評與委員評分所有暫存資料，並解除所有區段鎖定嗎？`);
+      const ok = confirm(`確定清除「${formLabel}」的自評與委員評分所有暫存資料嗎？`);
       if (!ok) return;
       localStorage.removeItem(stateKey("self"));
       localStorage.removeItem(stateKey("committee"));

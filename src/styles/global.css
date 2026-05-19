@@ -298,9 +298,10 @@ h1, h2, h3, p { margin-top: 0; }
 .lock-table thead th { background: #eff6ff; color: #1e40af; }
 .lock-table tbody th { background: #f8fafc; color: #0f172a; width: 120px; }
 .free-cell { color: #64748b; background: #f8fafc; }
-.locked-cell { color: #991b1b; background: #fff1f2; }
-.locked-cell strong { color: #b91c1c; }
-.locked-cell small { color: #7f1d1d; }
+.locked-cell { color: #1e3a8a; background: #eff6ff; }
+.locked-cell strong { color: #1d4ed8; }
+.locked-cell small { color: #475569; }
+.section-record-mini + hr { border: 0; border-top: 1px solid #bfdbfe; margin: 8px 0; }
 
 @media (max-width: 920px) {
   .split-heading { flex-direction: column; }

@@ -43,7 +43,7 @@ function scoreLabel(score: number) {
           本次填寫區段：<strong id="selected-section-text">讀取中</strong>
         </div>
         <div class="selected-section-line lock-line">
-          狀態：<strong id="record-status-text">區段已鎖定，填寫內容會自動暫存</strong>
+          狀態：<strong id="record-status-text">填寫內容會自動暫存</strong>
         </div>
       </div>
 
@@ -221,14 +221,14 @@ function scoreLabel(score: number) {
       <section class="action-bar">
         <div>
           <strong>目前表單共 {totalQuestionCount} 題</strong>
-          <span>本版尚未串接 API；區段鎖定、分數、評語與填寫結果會先存在此瀏覽器的 localStorage。</span>
+          <span>本版尚未串接 API；分數、評語與填寫結果會先存在此瀏覽器的 localStorage。前端不阻擋重複選取區段。</span>
         </div>
 
         <div class="action-buttons">
           <a class="btn ghost" href={`/section/${type}/${role.id}`}>回區段狀態</a>
           <button class="btn secondary" type="button" id="save-record-btn">儲存本次填寫</button>
           <button class="btn ghost" type="reset" id="reset-btn">清除本頁重填</button>
-          <button class="btn danger-soft" type="button" id="cancel-record-btn">取消並解除本次鎖定</button>
+          <button class="btn danger-soft" type="button" id="cancel-record-btn">取消本次填寫</button>
           <button class="btn ghost" type="button" id="print-btn">列印</button>
         </div>
       </section>
@@ -256,7 +256,7 @@ function scoreLabel(score: number) {
 
   function emptyState() {
     return {
-      version: 3,
+      version: 4,
       formType,
       role,
       formLabel,
@@ -322,7 +322,7 @@ function scoreLabel(score: number) {
       currentRecordId = createId();
       state.records.push({
         id: currentRecordId,
-        version: 3,
+        version: 4,
         formType,
         role,
         formLabel,
@@ -343,7 +343,7 @@ function scoreLabel(score: number) {
     if (!existing) {
       state.records.push({
         id: currentRecordId,
-        version: 3,
+        version: 4,
         formType,
         role,
         formLabel,
@@ -360,30 +360,8 @@ function scoreLabel(score: number) {
       });
     }
 
-    const conflicted = [];
-    activeSections.forEach((code) => {
-      const lock = state.locks?.[code];
-      if (lock?.recordId && lock.recordId !== currentRecordId) {
-        conflicted.push(code);
-      }
-    });
-
-    if (conflicted.length > 0) {
-      alert(`${conflicted.join("、")} 已被其他填寫紀錄鎖定，將返回區段選擇頁。`);
-      window.location.href = `/section/${formType}/${role}`;
-      return;
-    }
-
-    activeSections.forEach((code) => {
-      state.locks[code] = {
-        recordId: currentRecordId,
-        status: "draft",
-        ownerName: "",
-        lockedAt: state.locks?.[code]?.lockedAt || now,
-        updatedAt: now,
-      };
-    });
-
+    // 目前前端不阻擋重複選取區段，也不寫入區段鎖定。
+    // 未來串接後端後，再由後端判斷是否允許重複提交或重複領取。
     saveState(state);
   }
 
@@ -546,7 +524,7 @@ function scoreLabel(score: number) {
     if (!record) {
       record = {
         id: currentRecordId,
-        version: 3,
+        version: 4,
         formType,
         role,
         formLabel,
@@ -576,16 +554,8 @@ function scoreLabel(score: number) {
     record.answers = result.answers;
     record.comments = result.comments;
 
-    activeSections.forEach((code) => {
-      state.locks[code] = {
-        recordId: currentRecordId,
-        status: record.status,
-        ownerName,
-        lockedAt: state.locks?.[code]?.lockedAt || record.lockedAt || now,
-        updatedAt: now,
-      };
-    });
-
+    // 目前不由前端鎖定 A–E 區段。
+    // ownerName 仍保留在 record.meta，未來匯出與後端彙整會使用。
     saveState(state);
 
     const statusText = document.querySelector("#record-status-text");
@@ -605,14 +575,11 @@ function scoreLabel(score: number) {
   }
 
   function cancelRecord() {
-    const ok = confirm("確定取消本次填寫並解除這些區段的鎖定嗎？已填寫的本次資料會被移除。");
+    const ok = confirm("確定取消本次填寫嗎？已填寫的本次資料會被移除。");
     if (!ok) return;
 
     const state = readState();
     state.records = state.records.filter((record) => record.id !== currentRecordId);
-    SECTION_CODES.forEach((code) => {
-      if (state.locks?.[code]?.recordId === currentRecordId) delete state.locks[code];
-    });
     saveState(state);
     window.location.href = `/section/${formType}/${role}`;
   }
@@ -670,7 +637,7 @@ function scoreLabel(score: number) {
     updateScoreDisplay(result);
     updateCommitteeComments(result.comments);
     autosave("saved");
-    alert("已儲存本次填寫。此區段仍會保持鎖定，直到匯出最終 Excel 或手動清除資料。");
+    alert("已儲存本次填寫。前端不會鎖定區段，可由其他填寫者再次選取相同區段。");
   });
 
   document.querySelector("#reset-btn")?.addEventListener("click", () => {
