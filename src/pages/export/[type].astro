@@ -1,0 +1,332 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { FORMS, FORM_TYPES, ROLES, SECTION_CODES, SECTION_SUMMARY, type FormType } from "../../data/forms";
+
+export function getStaticPaths() {
+  return FORM_TYPES.map((type) => ({ params: { type: type.id } }));
+}
+
+const type = Astro.params.type as FormType;
+const form = FORMS[type];
+---
+
+<BaseLayout title={`匯出與管理｜${form.label}`}>
+  <main class="app-shell export-page" data-form-type={type} data-form-label={form.label}>
+    <nav class="breadcrumb">
+      <a href="/">首頁</a>
+      <span>/</span>
+      <a href={`/role/${type}`}>{form.label}</a>
+      <span>/</span>
+      <strong>匯出與管理</strong>
+    </nav>
+
+    <section class="landing-hero compact">
+      <div class="hero-copy">
+        <div class="eyebrow">EXPORT</div>
+        <h1>{form.label}｜最終資料匯出</h1>
+        <p>
+          本頁會依照目前瀏覽器暫存資料，各自匯出「據點自評」與「委員評分」兩個 Excel 檔。
+          匯出完成後可選擇清除資料並解除所有區段鎖定。
+        </p>
+      </div>
+      <a class="ghost-link" href={`/role/${type}`}>← 回填寫身分</a>
+    </section>
+
+    <section class="choice-section">
+      <div class="section-heading split-heading">
+        <div>
+          <span>目前暫存資料</span>
+          <h2>只會產出兩個檔案</h2>
+        </div>
+        <button class="btn danger-soft" type="button" id="clear-all-btn">清除本類型所有資料</button>
+      </div>
+
+      <div class="export-grid">
+        <article class="export-card" data-role-card="self">
+          <div class="choice-icon">自</div>
+          <div>
+            <p class="choice-kicker">檔案 1</p>
+            <h3>{ROLES.self.label}</h3>
+            <p>彙整所有據點自評填寫者的 A–E 分數與選項明細。</p>
+            <div class="export-status" id="status-self">讀取中…</div>
+            <button class="btn primary" type="button" data-export-role="self">匯出自評 Excel</button>
+          </div>
+        </article>
+
+        <article class="export-card" data-role-card="committee">
+          <div class="choice-icon orange-icon">評</div>
+          <div>
+            <p class="choice-kicker">檔案 2</p>
+            <h3>{ROLES.committee.label}</h3>
+            <p>彙整所有委員分區評分的 A–E 分數、選項明細與自動產生評語。</p>
+            <div class="export-status" id="status-committee">讀取中…</div>
+            <button class="btn primary" type="button" data-export-role="committee">匯出委員評分 Excel</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="choice-section">
+      <div class="section-heading">
+        <span>區段鎖定狀態</span>
+        <h2>目前 A–E 填寫分工</h2>
+      </div>
+
+      <div class="lock-table-wrap">
+        <table class="lock-table">
+          <thead>
+            <tr>
+              <th>身分</th>
+              {SECTION_CODES.map((code) => <th>{code}. {SECTION_SUMMARY[code].title}</th>)}
+            </tr>
+          </thead>
+          <tbody id="lock-table-body">
+            <tr><td colspan="6">讀取中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script is:inline>
+    const root = document.querySelector(".export-page");
+    const formType = root?.dataset.formType || "general";
+    const formLabel = root?.dataset.formLabel || "";
+    const SECTION_CODES = ["A", "B", "C", "D", "E"];
+    const SECTION_TITLES = {
+      A: "行政效能",
+      B: "服務品質管理",
+      C: "照顧服務品質",
+      D: "重要加扣分項目",
+      E: "環境安全與緊急意外事件處理",
+    };
+    const ROLE_LABELS = {
+      self: "據點自評",
+      committee: "委員評分",
+    };
+    const STORAGE_PREFIX = "dementia-eval-v3";
+
+    function stateKey(role) {
+      return `${STORAGE_PREFIX}:${formType}:${role}`;
+    }
+
+    function emptyState(role) {
+      return {
+        version: 3,
+        formType,
+        role,
+        formLabel,
+        roleLabel: ROLE_LABELS[role],
+        records: [],
+        locks: {},
+      };
+    }
+
+    function readState(role) {
+      try {
+        const raw = localStorage.getItem(stateKey(role));
+        if (!raw) return emptyState(role);
+        const parsed = JSON.parse(raw);
+        return {
+          ...emptyState(role),
+          ...parsed,
+          records: Array.isArray(parsed.records) ? parsed.records : [],
+          locks: parsed.locks && typeof parsed.locks === "object" ? parsed.locks : {},
+        };
+      } catch (error) {
+        console.warn("讀取資料失敗", error);
+        return emptyState(role);
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function formatScore(value) {
+      const number = Number(value || 0);
+      const rounded = Math.round((number + Number.EPSILON) * 100) / 100;
+      return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+    }
+
+    function formatTime(value) {
+      if (!value) return "";
+      try {
+        return new Date(value).toLocaleString("zh-TW", { hour12: false });
+      } catch {
+        return value;
+      }
+    }
+
+    function refreshStatus() {
+      ["self", "committee"].forEach((role) => {
+        const state = readState(role);
+        const records = state.records || [];
+        const locked = Object.keys(state.locks || {}).filter((code) => state.locks[code]?.recordId);
+        const scoreTotal = records.reduce((sum, record) => sum + Number(record.total || 0), 0);
+        const el = document.querySelector(`#status-${role}`);
+        if (el) {
+          el.innerHTML = `
+            <b>${records.length}</b> 筆填寫紀錄｜
+            <b>${locked.length}</b> 個區段已鎖定｜
+            目前彙整小計 <b>${formatScore(scoreTotal)}</b> 分
+          `;
+        }
+      });
+
+      const tbody = document.querySelector("#lock-table-body");
+      if (!tbody) return;
+      tbody.innerHTML = ["self", "committee"].map((role) => {
+        const state = readState(role);
+        return `
+          <tr>
+            <th>${ROLE_LABELS[role]}</th>
+            ${SECTION_CODES.map((code) => {
+              const lock = state.locks?.[code];
+              if (!lock?.recordId) return `<td class="free-cell">未鎖定</td>`;
+              const owner = lock.ownerName ? `<strong>${escapeHtml(lock.ownerName)}</strong>` : `<strong>未填姓名</strong>`;
+              const status = lock.status === "saved" ? "已儲存" : "填寫中";
+              return `<td class="locked-cell">${owner}<br><small>${status}｜${formatTime(lock.updatedAt || lock.lockedAt)}</small></td>`;
+            }).join("")}
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function makeRows(role, state) {
+      const rows = [];
+      rows.push(["表單類型", "身分", "紀錄ID", "狀態", "考評日期", "據點系統編號", "單位名稱", "據點名稱", "行政區", "填寫/委員姓名", "負責區段", "A分數", "B分數", "C分數", "D分數", "E分數", "本筆小計", "建立時間", "更新時間"]);
+      state.records.forEach((record) => {
+        const meta = record.meta || {};
+        rows.push([
+          formLabel,
+          ROLE_LABELS[role],
+          record.id || "",
+          record.status === "saved" ? "已儲存" : "填寫中",
+          meta.evaluationDate || "",
+          meta.siteCode || "",
+          meta.unitName || "",
+          meta.siteName || "",
+          meta.district || "",
+          meta.evaluatorName || "",
+          Array.isArray(record.sections) ? record.sections.join("、") : "",
+          record.scores?.A ?? "",
+          record.scores?.B ?? "",
+          record.scores?.C ?? "",
+          record.scores?.D ?? "",
+          record.scores?.E ?? "",
+          record.total ?? 0,
+          formatTime(record.lockedAt || record.createdAt),
+          formatTime(record.updatedAt),
+        ]);
+      });
+
+      rows.push([]);
+      rows.push(["題目明細"]);
+      rows.push(["身分", "紀錄ID", "填寫/委員姓名", "區段", "題號", "考評項目", "題目", "選擇/輸入", "分數", "自動評語"]);
+      state.records.forEach((record) => {
+        const meta = record.meta || {};
+        (record.answers || []).forEach((answer) => {
+          rows.push([
+            ROLE_LABELS[role],
+            record.id || "",
+            meta.evaluatorName || "",
+            answer.section || "",
+            answer.questionId || "",
+            answer.itemTitle || "",
+            answer.questionTitle || "",
+            answer.optionLabel || "",
+            answer.score ?? 0,
+            role === "committee" ? answer.comment || "" : "",
+          ]);
+        });
+      });
+
+      if (role === "committee") {
+        rows.push([]);
+        rows.push(["委員評語彙整"]);
+        rows.push(["紀錄ID", "委員姓名", "區段", "題號", "考評項目", "題目", "選擇", "分數", "自動評語"]);
+        state.records.forEach((record) => {
+          const meta = record.meta || {};
+          (record.comments || []).forEach((comment) => {
+            rows.push([
+              record.id || "",
+              meta.evaluatorName || "",
+              comment.section || "",
+              comment.questionId || "",
+              comment.itemTitle || "",
+              comment.questionTitle || "",
+              comment.optionLabel || "",
+              comment.score ?? 0,
+              comment.comment || "",
+            ]);
+          });
+        });
+      }
+
+      return rows;
+    }
+
+    function tableHtml(rows) {
+      return rows.map((row) => {
+        if (row.length === 0) return "<tr><td></td></tr>";
+        return `<tr>${row.map((cell, index) => index === 0 && row.length === 1 ? `<th>${escapeHtml(cell)}</th>` : `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`;
+      }).join("");
+    }
+
+    function downloadExcel(role) {
+      const state = readState(role);
+      if (!state.records || state.records.length === 0) {
+        alert(`${ROLE_LABELS[role]}目前沒有可匯出的資料。`);
+        return;
+      }
+
+      const rows = makeRows(role, state);
+      const html = `\ufeff<html><head><meta charset="UTF-8" />
+        <style>
+          table { border-collapse: collapse; font-family: "Microsoft JhengHei", Arial, sans-serif; }
+          td, th { border: 1px solid #999; padding: 6px 10px; mso-number-format:"\\@"; vertical-align: top; }
+          th { background: #dbeafe; font-weight: 700; }
+        </style>
+      </head><body><table>${tableHtml(rows)}</table></body></html>`;
+      const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const today = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+      a.href = url;
+      a.download = `${formLabel}_${ROLE_LABELS[role]}_彙整_${today}.xls`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      setTimeout(() => {
+        const clear = confirm(`${ROLE_LABELS[role]} Excel 已匯出。是否清除本身分暫存資料並解除區段鎖定？`);
+        if (clear) {
+          localStorage.removeItem(stateKey(role));
+          refreshStatus();
+        }
+      }, 300);
+    }
+
+    document.querySelectorAll("[data-export-role]").forEach((button) => {
+      button.addEventListener("click", () => downloadExcel(button.dataset.exportRole));
+    });
+
+    document.querySelector("#clear-all-btn")?.addEventListener("click", () => {
+      const ok = confirm(`確定清除「${formLabel}」的自評與委員評分所有暫存資料，並解除所有區段鎖定嗎？`);
+      if (!ok) return;
+      localStorage.removeItem(stateKey("self"));
+      localStorage.removeItem(stateKey("committee"));
+      refreshStatus();
+      alert("已清除本類型所有暫存資料。");
+    });
+
+    refreshStatus();
+  </script>
+</BaseLayout>

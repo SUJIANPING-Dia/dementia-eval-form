@@ -1,0 +1,24 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import EvaluationForm from "../../../components/EvaluationForm.astro";
+import { FORMS, FORM_TYPES, ROLES, type FormType, type RoleType } from "../../../data/forms";
+
+export function getStaticPaths() {
+  const paths = [];
+  for (const formType of FORM_TYPES) {
+    for (const role of Object.values(ROLES)) {
+      paths.push({ params: { type: formType.id, role: role.id } });
+    }
+  }
+  return paths;
+}
+
+const type = Astro.params.type as FormType;
+const role = Astro.params.role as RoleType;
+const form = FORMS[type];
+const roleInfo = ROLES[role];
+---
+
+<BaseLayout title={`${form.label}｜${roleInfo.label}｜115 年失智服務據點考評`}>
+  <EvaluationForm form={form} role={roleInfo} type={type} />
+</BaseLayout>

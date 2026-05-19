@@ -1,0 +1,47 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { FORM_TYPES } from "../data/forms";
+---
+
+<BaseLayout title="選擇考評表單｜115 年失智服務據點考評">
+  <main class="app-shell">
+    <section class="landing-hero">
+      <div class="hero-copy">
+        <div class="eyebrow">115 年失智服務據點考評</div>
+        <h1>失智服務據點考評表單系統</h1>
+        <p>
+          請先選擇要填寫的考評類型。系統會依序引導你選擇填寫身分、
+          本次負責的 A–E 區段，再進入對應表單。
+        </p>
+      </div>
+
+      <div class="hero-panel">
+        <span>填寫流程</span>
+        <strong>表單類型 → 填寫身分 → 負責區段 → 表單計分</strong>
+      </div>
+    </section>
+
+    <section class="choice-section">
+      <div class="section-heading">
+        <span>STEP 1</span>
+        <h2>選擇考評類型</h2>
+      </div>
+
+      <div class="choice-grid">
+        {
+          FORM_TYPES.map((type) => (
+            <a class="choice-card choice-card-large" href={`/role/${type.id}`}>
+              <div class="choice-icon">{type.id === "general" ? "一" : "權"}</div>
+              <div>
+                <p class="choice-kicker">考評表單</p>
+                <h3>{type.label}</h3>
+                <p>{type.description}</p>
+              </div>
+              <span class="choice-arrow">下一步 →</span>
+            </a>
+          ))
+        }
+      </div>
+    </section>
+  </main>
+</BaseLayout>

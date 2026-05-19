@@ -1,0 +1,275 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { FORMS, FORM_TYPES, ROLES, SECTION_CODES, SECTION_SUMMARY, type FormType, type RoleType } from "../../../data/forms";
+
+export function getStaticPaths() {
+  const paths = [];
+  for (const formType of FORM_TYPES) {
+    for (const role of Object.values(ROLES)) {
+      paths.push({ params: { type: formType.id, role: role.id } });
+    }
+  }
+  return paths;
+}
+
+const type = Astro.params.type as FormType;
+const role = Astro.params.role as RoleType;
+const form = FORMS[type];
+const roleInfo = ROLES[role];
+---
+
+<BaseLayout title={`選擇填寫區段｜${form.label}｜${roleInfo.label}`}>
+  <main class="app-shell section-page" data-form-type={type} data-role={role} data-form-label={form.label} data-role-label={roleInfo.label}>
+    <nav class="breadcrumb">
+      <a href="/">首頁</a>
+      <span>/</span>
+      <a href={`/role/${type}`}>{form.label}</a>
+      <span>/</span>
+      <strong>{roleInfo.label}</strong>
+    </nav>
+
+    <section class="landing-hero compact">
+      <div class="hero-copy">
+        <div class="eyebrow">STEP 3</div>
+        <h1>選擇本次填寫區段</h1>
+        <p>
+          同一個身分下，每個區段只能被一位填寫者領取。選擇後會立即鎖定，
+          其他人就不能再選同一區段，直到清除資料或匯出最終 Excel。
+        </p>
+      </div>
+      <div class="hero-action-stack">
+        <a class="ghost-link" href={`/role/${type}`}>← 重新選擇身分</a>
+        <a class="ghost-link" href={`/export/${type}`}>匯出 / 管理資料</a>
+      </div>
+    </section>
+
+    <section class="choice-section section-picker-shell">
+      <div class="section-heading split-heading">
+        <div>
+          <span>{form.label}｜{roleInfo.label}</span>
+          <h2>本次負責項目</h2>
+        </div>
+        <div class="lock-summary" id="lock-summary">讀取區段狀態中…</div>
+      </div>
+
+      <div class="section-check-grid" id="section-check-grid">
+        {SECTION_CODES.map((code) => (
+          <label class="section-check-card" data-section-card={code}>
+            <input type="checkbox" name="sections" value={code} />
+            <span class="section-letter">{code}</span>
+            <span class="section-check-content">
+              <b>{SECTION_SUMMARY[code].title}</b>
+              <small>滿分 {SECTION_SUMMARY[code].max} 分</small>
+              <em data-lock-text={code}>尚未鎖定，可選擇</em>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      <div class="section-picker-actions">
+        <button class="btn secondary" type="button" id="select-all-btn">選擇所有可填區段</button>
+        <button class="btn ghost" type="button" id="clear-select-btn">取消勾選</button>
+        <button class="btn danger-soft" type="button" id="clear-role-btn">清除本身分資料 / 解除鎖定</button>
+        <button class="btn primary" id="start-form-btn" type="button">請選擇區段</button>
+      </div>
+
+      <p class="section-lock-note">
+        例如甲委員先選 A 並開始填寫，A 會立刻鎖定；乙委員只能再選 B、C、D、E。
+        據點自評端也使用相同邏輯。
+      </p>
+    </section>
+  </main>
+
+  <script is:inline>
+    const root = document.querySelector(".section-page");
+    const formType = root?.dataset.formType || "general";
+    const role = root?.dataset.role || "self";
+    const formLabel = root?.dataset.formLabel || "";
+    const roleLabel = root?.dataset.roleLabel || "";
+    const SECTION_CODES = ["A", "B", "C", "D", "E"];
+    const STORAGE_PREFIX = "dementia-eval-v3";
+    const stateKey = `${STORAGE_PREFIX}:${formType}:${role}`;
+
+    function emptyState() {
+      return {
+        version: 3,
+        formType,
+        role,
+        formLabel,
+        roleLabel,
+        records: [],
+        locks: {},
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    function readState() {
+      try {
+        const raw = localStorage.getItem(stateKey);
+        if (!raw) return emptyState();
+        const parsed = JSON.parse(raw);
+        return {
+          ...emptyState(),
+          ...parsed,
+          records: Array.isArray(parsed.records) ? parsed.records : [],
+          locks: parsed.locks && typeof parsed.locks === "object" ? parsed.locks : {},
+        };
+      } catch (error) {
+        console.warn("讀取暫存資料失敗，已重新建立。", error);
+        return emptyState();
+      }
+    }
+
+    function saveState(state) {
+      state.updatedAt = new Date().toISOString();
+      localStorage.setItem(stateKey, JSON.stringify(state));
+    }
+
+    function createId() {
+      if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+      return `record-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function formatTime(value) {
+      if (!value) return "";
+      try {
+        return new Date(value).toLocaleString("zh-TW", { hour12: false });
+      } catch {
+        return value;
+      }
+    }
+
+    function refreshLocks() {
+      const state = readState();
+      let lockedCount = 0;
+
+      SECTION_CODES.forEach((code) => {
+        const card = document.querySelector(`[data-section-card="${code}"]`);
+        const input = card?.querySelector("input");
+        const text = document.querySelector(`[data-lock-text="${code}"]`);
+        const lock = state.locks?.[code];
+
+        if (!card || !input || !text) return;
+
+        if (lock?.recordId) {
+          lockedCount += 1;
+          input.checked = false;
+          input.disabled = true;
+          card.classList.add("is-locked");
+          const owner = lock.ownerName ? `｜${lock.ownerName}` : "";
+          const status = lock.status === "saved" ? "已儲存" : "填寫中";
+          text.textContent = `已鎖定｜${status}${owner}`;
+          text.title = lock.lockedAt ? `鎖定時間：${formatTime(lock.lockedAt)}` : "";
+        } else {
+          input.disabled = false;
+          card.classList.remove("is-locked");
+          text.textContent = "尚未鎖定，可選擇";
+          text.title = "";
+        }
+      });
+
+      const summary = document.querySelector("#lock-summary");
+      if (summary) {
+        summary.textContent = `已鎖定 ${lockedCount} / 5 區段，尚可選 ${5 - lockedCount} 區段`;
+      }
+
+      updateStartButton();
+    }
+
+    function selectedSections() {
+      return Array.from(document.querySelectorAll("input[name='sections']:checked"))
+        .filter((input) => !input.disabled)
+        .map((input) => input.value);
+    }
+
+    function updateStartButton() {
+      const button = document.querySelector("#start-form-btn");
+      const selected = selectedSections();
+      if (!button) return;
+      if (selected.length === 0) {
+        button.classList.add("is-disabled");
+        button.textContent = "請選擇區段";
+      } else {
+        button.classList.remove("is-disabled");
+        button.textContent = `開始填寫 ${selected.join("、")} →`;
+      }
+    }
+
+    function startForm() {
+      const selected = selectedSections();
+      if (selected.length === 0) return;
+
+      const state = readState();
+      const lockedByOthers = selected.filter((code) => state.locks?.[code]?.recordId);
+      if (lockedByOthers.length > 0) {
+        alert(`${lockedByOthers.join("、")} 已被其他填寫者鎖定，請重新選擇。`);
+        refreshLocks();
+        return;
+      }
+
+      const recordId = createId();
+      const now = new Date().toISOString();
+      const record = {
+        id: recordId,
+        version: 3,
+        formType,
+        role,
+        formLabel,
+        roleLabel,
+        sections: selected,
+        status: "draft",
+        lockedAt: now,
+        updatedAt: now,
+        meta: {},
+        scores: { A: 0, B: 0, C: 0, D: 0, E: 0 },
+        total: 0,
+        answers: [],
+        comments: [],
+      };
+
+      state.records.push(record);
+      selected.forEach((code) => {
+        state.locks[code] = {
+          recordId,
+          status: "draft",
+          ownerName: "",
+          lockedAt: now,
+          updatedAt: now,
+        };
+      });
+      saveState(state);
+
+      window.location.href = `/form/${formType}/${role}?sections=${encodeURIComponent(selected.join(","))}&recordId=${encodeURIComponent(recordId)}`;
+    }
+
+    document.querySelectorAll("input[name='sections']").forEach((input) => {
+      input.addEventListener("change", updateStartButton);
+    });
+
+    document.querySelector("#select-all-btn")?.addEventListener("click", () => {
+      document.querySelectorAll("input[name='sections']").forEach((input) => {
+        if (!input.disabled) input.checked = true;
+      });
+      updateStartButton();
+    });
+
+    document.querySelector("#clear-select-btn")?.addEventListener("click", () => {
+      document.querySelectorAll("input[name='sections']").forEach((input) => {
+        input.checked = false;
+      });
+      updateStartButton();
+    });
+
+    document.querySelector("#clear-role-btn")?.addEventListener("click", () => {
+      const ok = confirm(`確定清除「${formLabel}｜${roleLabel}」目前所有暫存紀錄與區段鎖定嗎？`);
+      if (!ok) return;
+      localStorage.removeItem(stateKey);
+      refreshLocks();
+      alert("已清除本身分資料並解除所有區段鎖定。");
+    });
+
+    document.querySelector("#start-form-btn")?.addEventListener("click", startForm);
+
+    refreshLocks();
+  </script>
+</BaseLayout>

@@ -1,0 +1,62 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { FORMS, FORM_TYPES, ROLES, type FormType } from "../../data/forms";
+
+export function getStaticPaths() {
+  return FORM_TYPES.map((type) => ({ params: { type: type.id } }));
+}
+
+const type = Astro.params.type as FormType;
+const form = FORMS[type];
+---
+
+<BaseLayout title={`選擇填寫身分｜${form.label}`}>
+  <main class="app-shell">
+    <nav class="breadcrumb">
+      <a href="/">首頁</a>
+      <span>/</span>
+      <strong>{form.label}</strong>
+    </nav>
+
+    <section class="landing-hero compact">
+      <div class="hero-copy">
+        <div class="eyebrow">STEP 2</div>
+        <h1>選擇填寫身分</h1>
+        <p>你目前選擇的是 <strong>{form.label}</strong>。接下來請選擇據點自評或委員評分。</p>
+      </div>
+      <div class="hero-action-stack">
+        <a class="ghost-link" href="/">← 重新選擇類型</a>
+        <a class="ghost-link" href={`/export/${type}`}>匯出 / 管理資料</a>
+      </div>
+    </section>
+
+    <section class="choice-section">
+      <div class="section-heading">
+        <span>STEP 2</span>
+        <h2>{form.label}｜填寫身分</h2>
+      </div>
+
+      <div class="choice-grid">
+        <a class="choice-card role-self" href={`/section/${type}/self`}>
+          <div class="choice-icon">自</div>
+          <div>
+            <p class="choice-kicker">據點端使用</p>
+            <h3>{ROLES.self.label}</h3>
+            <p>{ROLES.self.description}</p>
+          </div>
+          <span class="choice-arrow">選擇區段 →</span>
+        </a>
+
+        <a class="choice-card role-committee" href={`/section/${type}/committee`}>
+          <div class="choice-icon">評</div>
+          <div>
+            <p class="choice-kicker">委員端使用</p>
+            <h3>{ROLES.committee.label}</h3>
+            <p>{ROLES.committee.description}</p>
+          </div>
+          <span class="choice-arrow">選擇區段 →</span>
+        </a>
+      </div>
+    </section>
+  </main>
+</BaseLayout>

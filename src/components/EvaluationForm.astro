@@ -1,0 +1,692 @@
+---
+import { SECTION_CODES, SECTION_SUMMARY, type EvaluationFormData, type RoleType, type FormType } from "../data/forms";
+
+interface Props {
+  form: EvaluationFormData;
+  role: {
+    id: RoleType;
+    label: string;
+    shortLabel: string;
+    description: string;
+  };
+  type: FormType;
+}
+
+const { form, role, type } = Astro.props;
+const totalQuestionCount = form.sections.reduce((sum, section) => sum + section.questions.length, 0);
+const isCommittee = role.id === "committee";
+
+function scoreLabel(score: number) {
+  const rounded = Math.round((Number(score) + Number.EPSILON) * 100) / 100;
+  return `${Number.isInteger(rounded) ? rounded : rounded} 分`;
+}
+---
+
+<main class="form-page" data-role={role.id} data-form-type={type} data-form-label={form.label} data-role-label={role.label}>
+  <header class="form-hero">
+    <nav class="breadcrumb light">
+      <a href="/">首頁</a>
+      <span>/</span>
+      <a href={`/role/${type}`}>{form.label}</a>
+      <span>/</span>
+      <a href={`/section/${type}/${role.id}`}>{role.label}</a>
+      <span>/</span>
+      <strong>表單填寫</strong>
+    </nav>
+
+    <div class="form-hero-grid">
+      <div>
+        <div class="eyebrow">115 年失智服務據點考評</div>
+        <h1>{form.label}｜{role.label}</h1>
+        <p>{form.description}</p>
+        <div class="selected-section-line">
+          本次填寫區段：<strong id="selected-section-text">讀取中</strong>
+        </div>
+        <div class="selected-section-line lock-line">
+          狀態：<strong id="record-status-text">區段已鎖定，填寫內容會自動暫存</strong>
+        </div>
+      </div>
+
+      <div class="form-hero-card">
+        <span>目前身分</span>
+        <strong>{role.label}</strong>
+        <small>{role.description}</small>
+      </div>
+    </div>
+  </header>
+
+  <section class="scoreboard" aria-label="分數統計">
+    {SECTION_CODES.map((code) => (
+      <div class={`score-card section-score-${code}`} data-score-card-section={code}>
+        <span>{code}. {SECTION_SUMMARY[code].title}</span>
+        <strong><b id={`score-${code}`}>0</b><small>/ {SECTION_SUMMARY[code].max}</small></strong>
+      </div>
+    ))}
+    <div class="score-card total-dark score-card-wide">
+      <span>本次填寫小計</span>
+      <strong><b id="score-current">0</b><small>分</small></strong>
+    </div>
+  </section>
+
+  <form id="evaluation-form" class="form-layout">
+    <aside class="side-nav">
+      <div class="side-panel">
+        <p>快速導覽</p>
+        {form.sections.map((section) => (
+          <a data-side-section={section.code} href={`#section-${section.code}`}>{section.code}. {section.title}</a>
+        ))}
+        {isCommittee && <a href="#comment-summary" class="side-comment-link">委員評語彙整</a>}
+      </div>
+    </aside>
+
+    <div class="form-main">
+      <section class="info-panel">
+        <div class="panel-title">
+          <span>基本資料</span>
+          <h2>建立本次填寫紀錄</h2>
+        </div>
+
+        <div class="info-grid">
+          <label>
+            <span>考評日期</span>
+            <input type="date" name="evaluationDate" data-meta-input="true" />
+          </label>
+          <label>
+            <span>據點系統編號</span>
+            <input type="text" name="siteCode" placeholder="O-CS-" data-meta-input="true" />
+          </label>
+          <label>
+            <span>單位名稱</span>
+            <input type="text" name="unitName" placeholder="請輸入單位名稱" data-meta-input="true" />
+          </label>
+          <label>
+            <span>據點名稱</span>
+            <input type="text" name="siteName" placeholder="請輸入據點名稱" data-meta-input="true" />
+          </label>
+          <label>
+            <span>行政區</span>
+            <input type="text" name="district" placeholder="例如：左營區" data-meta-input="true" />
+          </label>
+          <label>
+            <span>{role.id === "committee" ? "委員姓名" : "填寫人員"}</span>
+            <input type="text" name="evaluatorName" placeholder="請輸入姓名" data-meta-input="true" />
+          </label>
+        </div>
+      </section>
+
+      {form.sections.map((section) => (
+        <section class={`eval-section section-${section.code}`} id={`section-${section.code}`} data-section-block={section.code}>
+          <div class="eval-section-head">
+            <div>
+              <span>指標 {section.code}</span>
+              <h2>{section.title}</h2>
+            </div>
+            <div class="section-score-pill">
+              <b id={`section-pill-${section.code}`}>0</b>
+              <small>/ {section.max} 分</small>
+            </div>
+          </div>
+
+          <div class="question-list">
+            {section.questions.map((question, index) => (
+              <article class="question-card" data-question-card="true" data-section={section.code} data-question-id={question.id}>
+                <div class="question-meta">
+                  <span class="item-chip">{question.itemTitle}</span>
+                  <span class="max-chip">配分 {question.maxText}</span>
+                </div>
+
+                <h3>
+                  <span>{index + 1}</span>
+                  {question.title}
+                </h3>
+
+                {question.kind === "choice" ? (
+                  <div class="option-grid">
+                    {question.options.map((option) => (
+                      <label class="option-card">
+                        <input
+                          type="radio"
+                          name={`q-${question.id}`}
+                          value={option.score}
+                          data-section={section.code}
+                          data-question-id={question.id}
+                          data-score-input="true"
+                          data-question-title={question.title}
+                          data-item-title={question.itemTitle}
+                          data-option-label={option.label}
+                          data-comment={option.comment ?? ""}
+                        />
+                        <span>{option.label}</span>
+                        <b>{scoreLabel(option.score)}</b>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div class="number-score-card">
+                    <div>
+                      <label for={`q-${question.id}`}>{question.inputLabel}</label>
+                      <p>{question.helper}</p>
+                    </div>
+                    <div class="number-input-wrap">
+                      <input
+                        id={`q-${question.id}`}
+                        type="number"
+                        name={`q-${question.id}`}
+                        min={question.min}
+                        max={question.max}
+                        step={question.step}
+                        value="0"
+                        data-section={section.code}
+                        data-question-id={question.id}
+                        data-score-input="true"
+                        data-question-title={question.title}
+                        data-item-title={question.itemTitle}
+                        data-option-label={question.inputLabel}
+                        data-comment=""
+                        data-multiplier={question.multiplier}
+                      />
+                      <span>{question.suffix}</span>
+                    </div>
+                  </div>
+                )}
+
+                {isCommittee && (
+                  <div class="inline-comment-preview" data-inline-comment={question.id} hidden>
+                    <strong>本題產出評語</strong>
+                    <p></p>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+      ))}
+
+      {isCommittee && (
+        <section class="comment-summary-panel" id="comment-summary">
+          <div class="panel-title">
+            <span>委員端自動產出</span>
+            <h2>評語彙整</h2>
+          </div>
+          <p class="summary-note">
+            此區會依照委員勾選的分數選項，自動帶出 Excel 原表中的「評語」或「資料來源與說明」。
+            若該選項原表未提供文字，則不會列入評語彙整。
+          </p>
+          <div id="comment-summary-list" class="comment-summary-list empty">
+            尚未選擇含有評語的項目。
+          </div>
+        </section>
+      )}
+
+      <section class="action-bar">
+        <div>
+          <strong>目前表單共 {totalQuestionCount} 題</strong>
+          <span>本版尚未串接 API；區段鎖定、分數、評語與填寫結果會先存在此瀏覽器的 localStorage。</span>
+        </div>
+
+        <div class="action-buttons">
+          <a class="btn ghost" href={`/section/${type}/${role.id}`}>回區段狀態</a>
+          <button class="btn secondary" type="button" id="save-record-btn">儲存本次填寫</button>
+          <button class="btn ghost" type="reset" id="reset-btn">清除本頁重填</button>
+          <button class="btn danger-soft" type="button" id="cancel-record-btn">取消並解除本次鎖定</button>
+          <button class="btn ghost" type="button" id="print-btn">列印</button>
+        </div>
+      </section>
+    </div>
+  </form>
+</main>
+
+<script is:inline>
+  const SECTION_CODES = ["A", "B", "C", "D", "E"];
+  const STORAGE_PREFIX = "dementia-eval-v3";
+  const page = document.querySelector(".form-page");
+  const role = page?.dataset.role || "self";
+  const formType = page?.dataset.formType || "general";
+  const formLabel = page?.dataset.formLabel || "";
+  const roleLabel = page?.dataset.roleLabel || "";
+  const params = new URLSearchParams(window.location.search);
+  const sectionParam = params.get("sections");
+  const initialRecordId = params.get("recordId");
+  const selectedSections = sectionParam
+    ? sectionParam.split(",").map((item) => item.trim()).filter((item) => SECTION_CODES.includes(item))
+    : SECTION_CODES;
+  const activeSections = selectedSections.length > 0 ? selectedSections : SECTION_CODES;
+  const stateKey = `${STORAGE_PREFIX}:${formType}:${role}`;
+  let currentRecordId = initialRecordId || "";
+
+  function emptyState() {
+    return {
+      version: 3,
+      formType,
+      role,
+      formLabel,
+      roleLabel,
+      records: [],
+      locks: {},
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function readState() {
+    try {
+      const raw = localStorage.getItem(stateKey);
+      if (!raw) return emptyState();
+      const parsed = JSON.parse(raw);
+      return {
+        ...emptyState(),
+        ...parsed,
+        records: Array.isArray(parsed.records) ? parsed.records : [],
+        locks: parsed.locks && typeof parsed.locks === "object" ? parsed.locks : {},
+      };
+    } catch (error) {
+      console.warn("讀取暫存資料失敗，已重新建立。", error);
+      return emptyState();
+    }
+  }
+
+  function saveState(state) {
+    state.updatedAt = new Date().toISOString();
+    localStorage.setItem(stateKey, JSON.stringify(state));
+  }
+
+  function createId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return `record-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function formatScore(value) {
+    const rounded = Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+    return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+  }
+
+  function setText(id, value) {
+    const el = document.querySelector(id);
+    if (el) el.textContent = typeof value === "number" ? formatScore(value) : value;
+  }
+
+  function clampNumberInput(input) {
+    let value = Number(input.value || 0);
+    const min = Number(input.min || 0);
+    const max = Number(input.max || 999);
+    if (value < min) value = min;
+    if (value > max) value = max;
+    input.value = formatScore(value);
+    return value;
+  }
+
+  function initializeRecord() {
+    const state = readState();
+    const now = new Date().toISOString();
+
+    if (!currentRecordId) {
+      currentRecordId = createId();
+      state.records.push({
+        id: currentRecordId,
+        version: 3,
+        formType,
+        role,
+        formLabel,
+        roleLabel,
+        sections: activeSections,
+        status: "draft",
+        lockedAt: now,
+        updatedAt: now,
+        meta: {},
+        scores: { A: 0, B: 0, C: 0, D: 0, E: 0 },
+        total: 0,
+        answers: [],
+        comments: [],
+      });
+    }
+
+    const existing = state.records.find((record) => record.id === currentRecordId);
+    if (!existing) {
+      state.records.push({
+        id: currentRecordId,
+        version: 3,
+        formType,
+        role,
+        formLabel,
+        roleLabel,
+        sections: activeSections,
+        status: "draft",
+        lockedAt: now,
+        updatedAt: now,
+        meta: {},
+        scores: { A: 0, B: 0, C: 0, D: 0, E: 0 },
+        total: 0,
+        answers: [],
+        comments: [],
+      });
+    }
+
+    const conflicted = [];
+    activeSections.forEach((code) => {
+      const lock = state.locks?.[code];
+      if (lock?.recordId && lock.recordId !== currentRecordId) {
+        conflicted.push(code);
+      }
+    });
+
+    if (conflicted.length > 0) {
+      alert(`${conflicted.join("、")} 已被其他填寫紀錄鎖定，將返回區段選擇頁。`);
+      window.location.href = `/section/${formType}/${role}`;
+      return;
+    }
+
+    activeSections.forEach((code) => {
+      state.locks[code] = {
+        recordId: currentRecordId,
+        status: "draft",
+        ownerName: "",
+        lockedAt: state.locks?.[code]?.lockedAt || now,
+        updatedAt: now,
+      };
+    });
+
+    saveState(state);
+  }
+
+  function initializeSectionVisibility() {
+    setText("#selected-section-text", activeSections.join("、"));
+
+    document.querySelectorAll("[data-section-block]").forEach((block) => {
+      const section = block.dataset.sectionBlock;
+      block.hidden = !activeSections.includes(section);
+    });
+
+    document.querySelectorAll("[data-side-section]").forEach((link) => {
+      const section = link.dataset.sideSection;
+      link.hidden = !activeSections.includes(section);
+    });
+
+    document.querySelectorAll("[data-score-card-section]").forEach((card) => {
+      const section = card.dataset.scoreCardSection;
+      const enabled = activeSections.includes(section);
+      card.classList.toggle("is-muted", !enabled);
+      if (!enabled) setText(`#score-${section}`, "—");
+    });
+  }
+
+  function getScoringInputs() {
+    return Array.from(document.querySelectorAll("[data-score-input='true']")).filter((input) => {
+      const section = input.dataset.section;
+      return activeSections.includes(section);
+    });
+  }
+
+  function collectMeta() {
+    const meta = {};
+    document.querySelectorAll("[data-meta-input='true']").forEach((input) => {
+      meta[input.name] = input.value || "";
+    });
+    return meta;
+  }
+
+  function collectScoresAndAnswers() {
+    const scores = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+    const answers = [];
+    const comments = [];
+
+    document.querySelectorAll("input[type='radio'][data-score-input='true']:checked").forEach((input) => {
+      const section = input.dataset.section;
+      if (!activeSections.includes(section)) return;
+      const score = Number(input.value || 0);
+      const row = {
+        section,
+        questionId: input.dataset.questionId || "",
+        itemTitle: input.dataset.itemTitle || "",
+        questionTitle: input.dataset.questionTitle || "",
+        optionLabel: input.dataset.optionLabel || "",
+        score,
+        comment: (input.dataset.comment || "").trim(),
+      };
+      scores[section] += score;
+      answers.push(row);
+      if (role === "committee" && row.comment) comments.push(row);
+    });
+
+    document.querySelectorAll("input[type='number'][data-score-input='true']").forEach((input) => {
+      const section = input.dataset.section;
+      if (!activeSections.includes(section)) return;
+      const multiplier = Number(input.dataset.multiplier || 1);
+      const rawValue = clampNumberInput(input);
+      const score = rawValue * multiplier;
+      scores[section] += score;
+      answers.push({
+        section,
+        questionId: input.dataset.questionId || "",
+        itemTitle: input.dataset.itemTitle || "",
+        questionTitle: input.dataset.questionTitle || "",
+        optionLabel: `${input.dataset.optionLabel || "數值輸入"}：${formatScore(rawValue)}`,
+        score,
+        comment: "",
+      });
+    });
+
+    const total = SECTION_CODES.reduce((sum, code) => sum + (activeSections.includes(code) ? Number(scores[code] || 0) : 0), 0);
+    return { scores, answers, comments, total };
+  }
+
+  function updateScoreDisplay(result) {
+    SECTION_CODES.forEach((id) => {
+      if (activeSections.includes(id)) {
+        setText(`#score-${id}`, result.scores[id]);
+        setText(`#section-pill-${id}`, result.scores[id]);
+      } else {
+        setText(`#score-${id}`, "—");
+      }
+    });
+    setText("#score-current", result.total);
+  }
+
+  function updateInlineComment(input) {
+    const card = input.closest("[data-question-card]");
+    if (!card) return;
+    const preview = card.querySelector("[data-inline-comment]");
+    if (!preview) return;
+    const text = input.dataset.comment || "";
+    const p = preview.querySelector("p");
+    if (text.trim()) {
+      p.textContent = text;
+      preview.hidden = false;
+    } else {
+      p.textContent = "";
+      preview.hidden = true;
+    }
+  }
+
+  function updateCommitteeComments(comments) {
+    if (role !== "committee") return;
+
+    document.querySelectorAll("[data-inline-comment]").forEach((box) => {
+      box.hidden = true;
+      const p = box.querySelector("p");
+      if (p) p.textContent = "";
+    });
+
+    document.querySelectorAll("input[type='radio'][data-score-input='true']:checked").forEach((input) => {
+      const section = input.dataset.section;
+      if (!activeSections.includes(section)) return;
+      updateInlineComment(input);
+    });
+
+    const list = document.querySelector("#comment-summary-list");
+    if (!list) return;
+
+    if (comments.length === 0) {
+      list.classList.add("empty");
+      list.innerHTML = "尚未選擇含有評語的項目。";
+      return;
+    }
+
+    list.classList.remove("empty");
+    list.innerHTML = comments.map((row) => `
+      <article class="comment-item">
+        <div class="comment-item-head">
+          <span>${escapeHtml(row.section)}</span>
+          <strong>${escapeHtml(row.itemTitle)}</strong>
+          <em>${escapeHtml(formatScore(row.score))} 分</em>
+        </div>
+        <p class="comment-question">${escapeHtml(row.questionTitle)}</p>
+        <p class="comment-choice">選擇：${escapeHtml(row.optionLabel)}</p>
+        <p class="comment-text">${escapeHtml(row.comment)}</p>
+      </article>
+    `).join("");
+  }
+
+  function autosave(status = "draft") {
+    const state = readState();
+    const now = new Date().toISOString();
+    const result = collectScoresAndAnswers();
+    const meta = collectMeta();
+    const ownerName = (meta.evaluatorName || "").trim();
+
+    let record = state.records.find((item) => item.id === currentRecordId);
+    if (!record) {
+      record = {
+        id: currentRecordId,
+        version: 3,
+        formType,
+        role,
+        formLabel,
+        roleLabel,
+        sections: activeSections,
+        status,
+        lockedAt: now,
+        updatedAt: now,
+        meta: {},
+        scores: { A: 0, B: 0, C: 0, D: 0, E: 0 },
+        total: 0,
+        answers: [],
+        comments: [],
+      };
+      state.records.push(record);
+    }
+
+    record.formLabel = formLabel;
+    record.roleLabel = roleLabel;
+    record.sections = activeSections;
+    record.status = status === "saved" ? "saved" : record.status === "saved" ? "saved" : "draft";
+    record.updatedAt = now;
+    record.savedAt = record.status === "saved" ? now : record.savedAt;
+    record.meta = meta;
+    record.scores = result.scores;
+    record.total = result.total;
+    record.answers = result.answers;
+    record.comments = result.comments;
+
+    activeSections.forEach((code) => {
+      state.locks[code] = {
+        recordId: currentRecordId,
+        status: record.status,
+        ownerName,
+        lockedAt: state.locks?.[code]?.lockedAt || record.lockedAt || now,
+        updatedAt: now,
+      };
+    });
+
+    saveState(state);
+
+    const statusText = document.querySelector("#record-status-text");
+    if (statusText) {
+      const nameText = ownerName ? `｜${ownerName}` : "";
+      statusText.textContent = `${record.status === "saved" ? "已儲存" : "自動暫存中"}${nameText}`;
+    }
+
+    return result;
+  }
+
+  function calculateScore() {
+    const result = collectScoresAndAnswers();
+    updateScoreDisplay(result);
+    updateCommitteeComments(result.comments);
+    autosave("draft");
+  }
+
+  function cancelRecord() {
+    const ok = confirm("確定取消本次填寫並解除這些區段的鎖定嗎？已填寫的本次資料會被移除。");
+    if (!ok) return;
+
+    const state = readState();
+    state.records = state.records.filter((record) => record.id !== currentRecordId);
+    SECTION_CODES.forEach((code) => {
+      if (state.locks?.[code]?.recordId === currentRecordId) delete state.locks[code];
+    });
+    saveState(state);
+    window.location.href = `/section/${formType}/${role}`;
+  }
+
+  function restoreRecordValues() {
+    const state = readState();
+    const record = state.records.find((item) => item.id === currentRecordId);
+    if (!record) return;
+
+    if (record.meta) {
+      Object.entries(record.meta).forEach(([key, value]) => {
+        const input = document.querySelector(`[name="${CSS.escape(key)}"]`);
+        if (input) input.value = value || "";
+      });
+    }
+
+    if (Array.isArray(record.answers)) {
+      record.answers.forEach((answer) => {
+        const name = `q-${answer.questionId}`;
+        const radios = Array.from(document.querySelectorAll(`input[type='radio'][name="${CSS.escape(name)}"]`));
+        if (radios.length > 0) {
+          const matched = radios.find((input) => input.dataset.optionLabel === answer.optionLabel && Number(input.value) === Number(answer.score));
+          if (matched) matched.checked = true;
+          return;
+        }
+        const numberInput = document.querySelector(`input[type='number'][name="${CSS.escape(name)}"]`);
+        if (numberInput) {
+          const match = String(answer.optionLabel || "").match(/：(.+)$/);
+          if (match) numberInput.value = match[1];
+        }
+      });
+    }
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  initializeRecord();
+  initializeSectionVisibility();
+  restoreRecordValues();
+
+  document.querySelectorAll("#evaluation-form input").forEach((input) => {
+    input.addEventListener("change", calculateScore);
+    input.addEventListener("input", calculateScore);
+  });
+
+  document.querySelector("#save-record-btn")?.addEventListener("click", () => {
+    const result = collectScoresAndAnswers();
+    updateScoreDisplay(result);
+    updateCommitteeComments(result.comments);
+    autosave("saved");
+    alert("已儲存本次填寫。此區段仍會保持鎖定，直到匯出最終 Excel 或手動清除資料。");
+  });
+
+  document.querySelector("#reset-btn")?.addEventListener("click", () => {
+    setTimeout(() => {
+      document.querySelectorAll("input[type='number'][data-score-input='true']").forEach((input) => {
+        input.value = 0;
+      });
+      calculateScore();
+    }, 0);
+  });
+
+  document.querySelector("#cancel-record-btn")?.addEventListener("click", cancelRecord);
+
+  document.querySelector("#print-btn")?.addEventListener("click", () => {
+    window.print();
+  });
+
+  calculateScore();
+</script>
