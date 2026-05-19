@@ -308,3 +308,513 @@ h1, h2, h3, p { margin-top: 0; }
   .export-grid { grid-template-columns: 1fr; }
   .hero-action-stack { justify-content: flex-start; }
 }
+
+/* v4: 行動裝置 UI 修正 — 防止文字跑版與小螢幕溢出 */
+html, body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* 所有主要容器與文字元件都允許換行，避免長文字撐破版面 */
+.app-shell,
+.form-page,
+.landing-hero,
+.form-hero,
+.choice-section,
+.info-panel,
+.eval-section,
+.comment-summary-panel,
+.action-bar,
+.choice-card,
+.section-check-card,
+.export-card,
+.score-card,
+.question-card,
+.option-card,
+.number-score-card,
+.comment-item,
+.lock-summary,
+.selected-section-line,
+.breadcrumb,
+.hero-action-stack,
+.action-buttons {
+  max-width: 100%;
+  min-width: 0;
+}
+
+h1, h2, h3, p, a, span, strong, small, b, em, label, button, input, textarea, td, th {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+img, svg, video, canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 桌機仍保留寬版，但平板先開始收斂 */
+@media (max-width: 960px) {
+  .app-shell,
+  .form-page {
+    width: min(100% - 28px, 100%);
+    padding-top: 20px;
+    padding-bottom: 64px;
+  }
+
+  .landing-hero,
+  .form-hero {
+    border-radius: 24px;
+    padding: 26px;
+  }
+
+  .landing-hero h1,
+  .form-hero h1 {
+    font-size: clamp(26px, 7vw, 38px);
+    line-height: 1.28;
+    letter-spacing: -0.02em;
+  }
+
+  .landing-hero p,
+  .form-hero p {
+    font-size: 16px;
+    line-height: 1.85;
+  }
+
+  .choice-card,
+  .export-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .choice-card h3,
+  .export-card h3 {
+    font-size: 22px;
+    line-height: 1.35;
+  }
+
+  .section-check-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .scoreboard {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .score-card {
+    min-height: auto;
+  }
+
+  .form-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .side-nav {
+    display: none;
+  }
+}
+
+/* 手機版：整體卡片縮小、按鈕堆疊、文字不溢出 */
+@media (max-width: 640px) {
+  :root {
+    --radius-xl: 22px;
+    --radius-lg: 18px;
+    --radius-md: 14px;
+  }
+
+  .app-shell,
+  .form-page {
+    width: 100%;
+    padding: 12px 12px 56px;
+  }
+
+  .breadcrumb {
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .breadcrumb.light {
+    margin-bottom: 18px;
+  }
+
+  .landing-hero,
+  .form-hero,
+  .choice-section,
+  .info-panel,
+  .eval-section,
+  .comment-summary-panel,
+  .action-bar {
+    border-radius: 22px;
+    padding: 18px;
+  }
+
+  .landing-hero,
+  .form-hero-grid,
+  .choice-grid,
+  .info-grid,
+  .section-check-grid,
+  .export-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .landing-hero,
+  .form-hero-grid {
+    gap: 16px;
+  }
+
+  .hero-panel,
+  .form-hero-card {
+    border-radius: 18px;
+    padding: 18px;
+  }
+
+  .hero-panel strong,
+  .form-hero-card strong {
+    font-size: 20px;
+    line-height: 1.45;
+  }
+
+  .eyebrow,
+  .section-heading span,
+  .panel-title span,
+  .eval-section-head span {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+  }
+
+  .landing-hero h1,
+  .form-hero h1 {
+    margin-top: 10px;
+    font-size: 28px;
+    line-height: 1.32;
+  }
+
+  .landing-hero p,
+  .form-hero p {
+    font-size: 15px;
+    line-height: 1.8;
+  }
+
+  .hero-action-stack {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .ghost-link,
+  .hero-action-stack .ghost-link {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .choice-section {
+    margin-top: 16px;
+  }
+
+  .section-heading,
+  .panel-title {
+    margin-bottom: 16px;
+  }
+
+  .section-heading h2,
+  .panel-title h2,
+  .eval-section-head h2 {
+    font-size: 22px;
+    line-height: 1.38;
+  }
+
+  .choice-card,
+  .export-card {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    min-height: auto;
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .choice-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 16px;
+    font-size: 21px;
+  }
+
+  .choice-card h3,
+  .export-card h3 {
+    font-size: 21px;
+    line-height: 1.42;
+  }
+
+  .choice-card p,
+  .export-card p {
+    line-height: 1.75;
+  }
+
+  .choice-arrow {
+    position: static;
+    display: inline-flex;
+    margin-top: 4px;
+  }
+
+  .section-check-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    min-height: auto;
+    padding: 15px;
+    border-radius: 18px;
+  }
+
+  .section-letter {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+  }
+
+  .section-check-content b {
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  .section-picker-actions,
+  .action-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .btn,
+  .section-picker-actions .btn,
+  .action-buttons .btn {
+    width: 100%;
+    min-height: 46px;
+    padding: 12px 14px;
+    text-align: center;
+    white-space: normal;
+    line-height: 1.45;
+  }
+
+  .lock-summary {
+    width: 100%;
+    border-radius: 16px;
+    white-space: normal;
+    line-height: 1.6;
+  }
+
+  .selected-section-line {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-top: 12px;
+    border-radius: 16px;
+    line-height: 1.6;
+    white-space: normal;
+  }
+
+  .lock-line {
+    margin-left: 0;
+  }
+
+  .scoreboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 14px 0 18px;
+  }
+
+  .score-card {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .score-card span {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .score-card strong {
+    font-size: 24px;
+    line-height: 1.15;
+  }
+
+  .score-card small {
+    font-size: 12px;
+  }
+
+  .eval-section-head,
+  .action-bar,
+  .number-score-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .section-score-pill {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .question-list {
+    gap: 12px;
+  }
+
+  .question-card {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .question-card h3 {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    font-size: 16px;
+    line-height: 1.75;
+  }
+
+  .question-card h3 span {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+
+  .item-chip,
+  .max-chip {
+    max-width: 100%;
+    min-height: 28px;
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: normal;
+  }
+
+  .option-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    padding: 13px;
+    border-radius: 15px;
+  }
+
+  .option-card input {
+    margin-top: 4px;
+  }
+
+  .option-card span {
+    font-size: 15px;
+    line-height: 1.75;
+  }
+
+  .option-card b {
+    grid-column: 2;
+    text-align: left;
+    white-space: normal;
+    font-size: 15px;
+  }
+
+  .number-score-card {
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .number-input-wrap {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .number-input-wrap input {
+    width: min(140px, 100%);
+  }
+
+  .inline-comment-preview,
+  .comment-item,
+  .comment-summary-list.empty,
+  .export-status {
+    border-radius: 15px;
+    padding: 14px;
+  }
+
+  .comment-item-head {
+    align-items: flex-start;
+  }
+
+  .comment-item-head em {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .action-bar strong {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .action-bar span {
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .lock-table-wrap {
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* 小手機：分數卡改單欄，避免 E 區長標題擠壓 */
+@media (max-width: 430px) {
+  .app-shell,
+  .form-page {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .landing-hero,
+  .form-hero,
+  .choice-section,
+  .info-panel,
+  .eval-section,
+  .comment-summary-panel,
+  .action-bar {
+    padding: 16px;
+  }
+
+  .landing-hero h1,
+  .form-hero h1 {
+    font-size: 25px;
+  }
+
+  .scoreboard {
+    grid-template-columns: 1fr;
+  }
+
+  .score-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .score-card span {
+    flex: 1;
+  }
+
+  .score-card strong {
+    margin-top: 0;
+    flex: 0 0 auto;
+  }
+
+  .question-card h3 {
+    grid-template-columns: 1fr;
+  }
+
+  .question-card h3 span {
+    place-self: start;
+  }
+
+  .option-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}
